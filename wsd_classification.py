@@ -27,6 +27,22 @@ class ClassifierGenerator(object):
 		return classifier
 
 
+class LabelEncoder(object):
+    def fit(self, labels):
+        label_set = set(labels)
+        self.label2target = {}
+        self.target2label = {}
+        for i, label in enumerate(label_set):
+            self.label2target[label] = i + 1
+            self.target2label[i + 1] = label
+
+    def transform(self, labels):
+        return map(lambda l: self.label2target.get(l, 0), labels)
+
+    def inverse_transform(self, targets):
+        return map(lambda t: self.target2label[t], targets)
+
+
 def main(args):
 	logger.info(args)
 
@@ -36,16 +52,18 @@ def main(args):
 
 	classifiers = {}
 	label_encoders = {}
+        label_offsets = {}
 	logger.info("Create classifiers...")
 	for target_word in train_data.keys():
 		features = train_data[target_word][0]
 		labels = train_data[target_word][1]
-		le = preprocessing.LabelEncoder()
-		le.fit(labels)
+		le = LabelEncoder()
+                le.fit(labels)
 		label_encoders[target_word] = le
 		classifier = classifier_generator.new_classifier({'k':len(features), 'cos':args.cos})
-		classifier.fit(np.array(features), le.transform(labels))
+		classifier.fit(np.array(features), np.array(le.transform(labels)))
 		classifiers[target_word] = classifier
+                label_offsets[target_word] = len(set(labels)) + 1
 
 	# Evaluate
 	ok = 0
@@ -70,7 +88,7 @@ def main(args):
 		# ok += n_correct
 		# notok += np.size(targets) - n_correct
 		for i in xrange(n):
-			if labels[i] == predictions[i]:
+			if labels[i] == predictions[i] and predictions[i] is not None:
 				ok += 1
 			else:
 				notok += 1
@@ -84,8 +102,8 @@ def main(args):
 		f1 = (2 * precision * recall) / (precision + recall)
 	logger.info("Evaluation result:")
 	logger.info("  Precision: %f" % precision)
-	logger.info("  Recall: %f" % recall)
-	logger.info("  F1: %f" % f1)
+	logger.info("  Recall:    %f" % recall)
+	logger.info("  F1:        %f" % f1)
 
 
 if __name__ == "__main__":
@@ -98,5 +116,6 @@ if __name__ == "__main__":
 	parser.set_defaults(mfs=False)
 	# parser.add_argument('--cos', dest='cos', action='store_true')
         parser.set_defaults(cos=True)
+        parser.add_argument('--output_path', help="Optional, path to save predictions")
 	args, unparsed_args = parser.parse_known_args()
 	main(args)

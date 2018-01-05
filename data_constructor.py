@@ -1,5 +1,6 @@
 import xml.etree.ElementTree as et
-from lxml import html
+from StringIO import StringIO
+from lxml import etree
 
 from constants import *
 from utils import *
@@ -41,27 +42,20 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
     :param data_group_by_word
     :return: None
     """
-
-    data_group_by_word = defaultdict(list)
     indexed_docs = []
+    data_group_by_word = defaultdict(list)
     padding = np.empty(context_size, dtype=np.int32)
     padding.fill(word2idx[pad])
     w_unknown_idx = word2idx[w_unknown]
 
     for root_dir, dirnames, filenames in os.walk(dataset_path):
         for filename in fnmatch.filter(filenames, '*.xml'):
-            # Loop through every xml file
             tree = et.parse(join(root_dir, filename))
             root = tree.getroot()
             parsed_xml = [child.attrib for child in root.findall('word')]
 
-            # Initialization
             n_doc = len(indexed_docs)
             doc_idxs = []
-
-            # Master before stash apply work barnch
-            # doc_idxs.append(word2idx[bos])
-            # for position, child in enumerate(parsed_xml):
 
             doc_idxs.append(word2idx[bos])
             position = 0
@@ -69,12 +63,13 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
                 position += 1 # add one first since bos append above
                 text = normalize(child['text'])
                 word_idx = word2idx.get(text, w_unknown_idx)
+                doc_idxs.append(word_idx)
 
                 break_level_idx = child['break_level']
-                # if break_level_idx in ['SENTENCE_BREAK', 'PARAGRAPH_BREAK', 'LINE_BREAK']:
-                #     doc_idxs.append(word2idx[eos])
-                #     doc_idxs.append(word2idx[bos])
-                doc_idxs.append(word_idx)
+                if break_level_idx in ['SENTENCE_BREAK', 'PARAGRAPH_BREAK', 'LINE_BREAK']:
+                    doc_idxs.append(word2idx[eos])
+                    doc_idxs.append(word2idx[bos])
+                    position += 2
 
                 if 'sense' in child:
                     # Encounter a target word data
@@ -85,7 +80,6 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
                         target_words[lemma] = target_word
                     target_word = target_words[lemma]
                     label = child['sense'].split('/')[-1]
-                    # label = int(child['sense'].split('.')[1])
                     if label not in target_word.label2target:
                         sense_idx = len(target_word.label2target)
                         target_word.label2target[label] = sense_idx
@@ -93,7 +87,7 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
                     target = target_word.label2target[label]
                     data = Data(target_word, n_doc, position, pos, target)
                     data_group_by_word[lemma].append(data)
-            # doc_idxs.append(word2idx[eos])
+            doc_idxs.append(word2idx[eos])
             doc_idxs = np.concatenate([padding, np.asarray(doc_idxs, dtype=np.int32), padding], 0)
             indexed_docs.append(doc_idxs)
     return indexed_docs, data_group_by_word
@@ -116,91 +110,68 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
     """
     doc_indexed = []
     data_group_by_word = defaultdict(list)
-
-    w_unknown_idx = word2idx[w_unknown]
     padding = np.empty(context_size, dtype=np.int32)
     padding.fill(word2idx[pad])
+    w_unknown_idx = word2idx[w_unknown]
 
     label2sense = {}
     with open(dataset_path + '.gold.key.txt', 'r') as label_file:
         for line in label_file.readlines():
             tokens = line.rstrip().split(' ')
-            label2sense[tokens[0]] = tokens[1]
+            label2sense[tokens[0]] = tokens[1]        
     with open(dataset_path + '.data.xml', 'r') as f:
-        checking_stack = []
-        for line in f:
-            split1 = line.split('</')
-            if len(split1) == 1:
-                tokens = split1[0][1:-1].split()
-            elif len(split1) == 2:
-                temp, text = split1.split('>')
-                tokens = temp[1:].split()
-            else:
-                raise "Unnormal line"
-            tag = tokens[0]
-            if tag == "corpus":
-                
-
-    tree = html.parse(dataset_path + '.data.xml')
-    for n_doc, doc in enumerate(tree.xpath('body/corpus')):
-        corpus = doc.get('source')
-        logger.info("Parse %s..." % corpus)
-        doc_idxs = []
-        position = 0
-        for sent_node in doc.xpath('text/sentence'):
-            for child_el in sent_node.getchildren():
-                text = child_el.text
-                word_idx = word2idx.get(text, w_unknown_idx)
-                doc_idxs.append(word_idx)
-                if child_el.tag == 'instance':
-                    instance_id = child_el.get('id')
-                    lemma = child_el.get('lemma')
-                    pos = child_el.get('pos')
-                    if lemma not in target_words:
-                        target_word = TargetWord(lemma)
-                        target_words[lemma] = target_word
-                    target_word = target_words[lemma]
-                    sense = label2sense[instance_id]
-                    if sense not in target_word.label2target:
-                        sense_idx = len(target_word.label2target)
-                        target_word.label2target[sense] = sense_idx
-                        target_word.target2label[sense_idx] = sense
-                    target = target_word.label2target[sense]
-                    data = Data(target_word, n_doc, position, pos, target)
-                    data_group_by_word[lemma].append(data)
+        xml_tree = etree.iterparse(StringIO(f.read()), events=("start", "end"))
+    for action, element in xml_tree:
+        if action == "start":
+            if element.tag == "corpus":
+                logger.info("Process corpus %s..." % element.get('source'))
+            elif element.tag == "text":
+                n_doc = len(doc_indexed)
+                doc_idxs = []
+                position = 0
+            elif element.tag == "sentence":
+                doc_idxs.append(word2idx[bos])
                 position += 1
-
-    # for n_doc, doc in enumerate(tree.getroot()):
-    #     doc_idxs = []
-    #     position = 0
-    #     for sentence in doc:
-    #         for token in sentence:
-    #             text = normalize(token.text)
-    #             word_idx = word2idx.get(text, w_unknown_idx)
-    #             doc_idxs.append(word_idx)
-    #             if token.tag == 'instance':
-    #                 lemma = token.attrib['lemma']
-    #                 pos = token.attrib['pos']
-    #                 if lemma not in target_words:
-    #                     target_word = TargetWord(lemma)
-    #                     target_words[lemma] = target_word
-    #                 target_word = target_words[lemma]
-    #                 sense = label2sense[token.attrib['id']]
-    #                 if sense not in target_word.label2target:
-    #                     sense_idx = len(target_word.label2target)
-    #                     target_word.label2target[sense] = sense_idx
-    #                     target_word.target2label[sense_idx] = sense
-    #                 target = target_word.label2target[sense]
-    #                 # target = token.attrib['id']
-    #                 data = Data(target_word, n_doc, position, pos, target)
-    #                 data_group_by_word[lemma].append(data)
-    #             position += 1
-        doc_idxs = np.concatenate(
-            [padding,
-             np.asarray(doc_idxs, dtype=np.int32),
-             padding], 0
-        )
-        doc_indexed.append(doc_idxs)
+            elif element.tag == "wf":
+                word_idx = word2idx.get(element.text, w_unknown_idx)
+                doc_idxs.append(word_idx)
+                position += 1
+            elif element.tag == "instance":
+                word_idx = word2idx.get(element.text, w_unknown_idx)
+                doc_idxs.append(word_idx)
+                position += 1
+                instance_id = element.get('id')
+                lemma = element.get('lemma')
+                pos = element.get('pos')
+                if lemma not in target_words:
+                    target_word = TargetWord(lemma)
+                    target_words[lemma] = target_word
+                target_word = target_words[lemma]
+                sense = label2sense[instance_id]
+                if sense not in target_word.label2target:
+                    sense_idx = len(target_word.label2target)
+                    target_word.label2target[sense] = sense_idx
+                    target_word.target2label[sense_idx] = sense
+                target = target_word.label2target[sense]
+                data = Data(target_word, n_doc, position, pos, target)
+                data_group_by_word[lemma].append(data)
+            else:
+                continue
+        elif action == "end":
+            if element.tag == "sentence":
+                doc_idxs.append(word2idx[eos])
+                position += 1
+            elif element.tag == "text":
+                doc_idxs = np.concatenate(
+                    [padding,
+                     np.asarray(doc_idxs, dtype=np.int32),
+                     padding], 0
+                )
+                doc_indexed.append(doc_idxs)
+            else:
+                continue
+        else:
+            raise "Unknown iterparse action"
     return doc_indexed, data_group_by_word
 
 

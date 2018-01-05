@@ -25,18 +25,17 @@ def calculate_accumulate_sense_index(target_words):
     Target words have different number of senses. We want a unified sense index based on these senses for all
     target words.
     For example, target words 'a','b','c' each have 3,4,3 sense, this function should give these 3+4+3=10 senses, then
-    the output should be [0, 3, 7, 10]
+    the output should be {'a':0, 'b':4, 'c':9, 'END':13]
     :param target_words: dict(str, TargetWord)
     :return: list(int),
     """
-    accum_sense_idx = []
+    accum_sense_idx = {}
     sum_sense = 0
     accum_sense_idx.append(sum_sense)
-    target_words_sorted_by_id = sorted(target_words.values(), key=lambda w: w.id)
-    for i, target_word in enumerate(target_words_sorted_by_id):
-        assert target_word.id == i, "Target word ID doesn't match"
-        sum_sense += len(target_word.label2target)
-        accum_sense_idx.append(sum_sense)
+    for target_word in target_words.value(): 
+        accum_sense_idx[target_word.word] = sum_sense
+        sum_sense += len(target_word.label2target) + 1 # plus one for unknown
+    accum_sense_idx['END'] = sum_sense
     return accum_sense_idx
 
 
