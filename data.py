@@ -144,7 +144,7 @@ class BatchConstructor(object):
 
             yield left_buff[:n_next_batch], right_buff[:n_next_batch], batch_target_words, batch_targets
 
-    def next_by_target(self, batch_size, target_word, target, ngram=2, shuffle=False):
+    def next_by_target(self, batch_size, target_word, target, ngram, shuffle=False):
         """
         Return batch of data by word and its sense
         :param batch_size:
@@ -157,8 +157,8 @@ class BatchConstructor(object):
             raise StopIteration
 
         dataset = self.datasets[target_word]
-        left_buff = np.ndarray((batch_size, self.context_size), dtype=np.int32)
-        right_buff = np.ndarray((batch_size, self.context_size), dtype=np.int32)
+        left_buff = np.ndarray((batch_size, self.context_size, ngram - 1), dtype=np.int32)
+        right_buff = np.ndarray((batch_size, self.context_size, ngram - 1), dtype=np.int32)
         data_of_target = np.array([data for data in dataset.dataset if data.target==target])
 
         if len(data_of_target) == 0:
@@ -176,8 +176,18 @@ class BatchConstructor(object):
                 doc = self.docList_indexed[data.n_doc]
                 position = data.position
                 pos_buff.append(data.pos)
-                left_buff[i] = doc[position: position + self.context_size]
-                right_buff[i] = doc[position + self.context_size + 1: position + 2 * self.context_size + 1]
+
+                for j in xrange(ngram - 1):
+                    left_buff[i,:,j] = doc[position + j: position + self.context_size + j]
+
+                for j in xrange(ngram - 1):
+                    right_buff[i,:,j] = doc[position + self.context_size + j + ngram - 1: position + 2 * self.context_size + j + ngram - 1]
+
+                # left_buff[i,:,0] = doc[position - 1: position + self.context_size - 1]
+                # left_buff[i,:,1] = doc[position: position + self.context_size]
+                # right_buff[i,:,0] = doc[position + self.context_size + 1: position + 2 * self.context_size + 1]
+                # right_buff[i,:,1] = doc[position + self.context_size + 2: position + 2 * self.context_size + 2]
+
             yield left_buff[:n_next_batch], right_buff[:n_next_batch], pos_buff
             cur += batch_size
 

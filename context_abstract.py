@@ -21,7 +21,7 @@ def main(args):
 
 		logger.info("Process data...")
 		target_words = {}
-		data_constructor = process_data(args.data_path, args.data_type, word2idx, target_words, args.context_size)
+		data_constructor = process_data(args.data_path, args.data_type, word2idx, target_words, args.context_size, args.ngram)
 		logger.debug("Number of target words: %d" % len(target_words))
 
 	logger.info("Load language model...")
@@ -34,7 +34,7 @@ def main(args):
 		labels = []
 		poss = []
 		for target, label in target_word.target2label.items():
-			for left_context, right_context, pos in data_constructor.next_by_target(args.batch_size, target_word.word, target):
+			for left_context, right_context, pos in data_constructor.next_by_target(args.batch_size, target_word.word, target, ngram=args.ngram):
 				features.extend(language_model.infer(left_context, right_context))
 				labels.extend([label] * left_context.shape[0])
 				poss.extend(pos)
@@ -61,6 +61,7 @@ if __name__ == "__main__":
 	parser.set_defaults(processed=False)
 	parser.add_argument('--batch_size', type=int, default=128)
 	parser.add_argument('--context_size', type=int, default=16)
+	parser.add_argument('--ngram', type=int, default=2)
 	args, unparsed_args = parser.parse_known_args()
 	main(args)
 

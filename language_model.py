@@ -22,8 +22,8 @@ class LanguageModel(object):
         self.session = tf.Session(graph=self.graph)
 
         with self.graph.as_default():
-            self.left_context = tf.placeholder(tf.int32, [None, None], name="LeftContext")
-            self.right_context = tf.placeholder(tf.int32, [None, None], name="RightContext")
+            self.left_context = tf.placeholder(tf.int32, [None, None, None], name="LeftContext")
+            self.right_context = tf.placeholder(tf.int32, [None, None, None], name="RightContext")
             self.alpha = tf.constant(
                 np.tile(np.float32(alpha) ** np.arange(1024), [1024, 1]),
                 dtype=tf.float32, name="Alpha"
@@ -32,18 +32,33 @@ class LanguageModel(object):
             # Embedding vector non-trainable
             self.word2vec = tf.constant(word2vec, name="Embedding")
 
-            batch_size, context_size = tf.unstack(tf.shape(self.left_context))
+            batch_size, context_size, ngram = tf.unstack(tf.shape(self.left_context))
 
             right_alpha = tf.reshape(self.alpha[:batch_size, :context_size], [batch_size, 1, -1])
-            
             left_alpha = tf.reshape(right_alpha[:, :, ::-1], [batch_size, 1, -1])
+
             left_context = tf.squeeze(
-                tf.matmul(left_alpha, tf.gather(self.word2vec, self.left_context)),
-                squeeze_dims=[1], name="RightContextFOFE"
+                tf.matmul(
+                    left_alpha, 
+                    tf.reshape(
+                        tf.gather(self.word2vec, self.left_context),
+                        [batch_size, context_size, -1]
+                    )
+                ),
+                squeeze_dims=[1], 
+                name="LeftContextFOFE"
             )
+
             right_context = tf.squeeze(
-                tf.matmul(right_alpha, tf.gather(self.word2vec, self.right_context)),
-                squeeze_dims=[1], name="LeftContextFOFE"
+                tf.matmul(
+                    right_alpha,
+                    tf.reshape(
+                        tf.gather(self.word2vec, self.right_context),
+                        [batch_size, context_size, -1]
+                    )
+                ),
+                squeeze_dims=[1],
+                name="RightContextFOFE"
             )
             projection = tf.concat([left_context, right_context], 1, name="Projection")
             current_out = projection
@@ -64,8 +79,9 @@ class LanguageModel(object):
         """
         Given left_context and right_context of samples, return the predict target
         idx
-        :param left_context: numpy.array(N, C)
-        :param right_context: numpy.array(N, C)
+        Let N be batch size, C be context size, O be ngram size
+        :param left_context: numpy.array(N, C, O)
+        :param right_context: numpy.array(N, C, O)
         :return: numpy.array(N, M), M is the bottom neck layer size.
         """
         predicted = self.session.run(

@@ -25,7 +25,7 @@ def augment_data(origin_data, num):
     return np.random.choice(origin_data, num, replace=True).tolist()
 
 
-def extract_words_masc(dataset_path, word2idx, target_words, context_size):
+def extract_words_masc(dataset_path, word2idx, target_words, context_size, ngram):
     """
     Extract context words and target words from xml files of given data set. It does following jobs:
 
@@ -56,11 +56,13 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
 
             n_doc = len(indexed_docs)
             doc_idxs = []
-
-            doc_idxs.append(word2idx[bos])
             position = 0
+
+            for _ in xrange(ngram - 1):
+                doc_idxs.append(word2idx[bos])
+                position += 1
+            
             for child in parsed_xml:
-                position += 1 # add one first since bos append above
                 # text = normalize(child['text'])
                 text = child['text']
                 word_idx = word2idx.get(text, w_unknown_idx)
@@ -68,9 +70,12 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
 
                 break_level_idx = child['break_level']
                 if break_level_idx in ['SENTENCE_BREAK', 'PARAGRAPH_BREAK', 'LINE_BREAK']:
-                    doc_idxs.append(word2idx[eos])
-                    doc_idxs.append(word2idx[bos])
-                    position += 2
+                    for _ in xrange(ngram - 1):
+                        doc_idxs.append(word2idx[eos])
+                        position += 1
+                    for _ in xrange(ngram - 1):
+                        doc_idxs.append(word2idx[bos])
+                        position += 1
 
                 if 'sense' in child:
                     # Encounter a target word data
@@ -88,13 +93,16 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
                     target = target_word.label2target[label]
                     data = Data(target_word, n_doc, position, pos, target)
                     data_group_by_word[lemma].append(data)
+
+                position += 1
+
             doc_idxs.append(word2idx[eos])
             doc_idxs = np.concatenate([padding, np.asarray(doc_idxs, dtype=np.int32), padding], 0)
             indexed_docs.append(doc_idxs)
     return indexed_docs, data_group_by_word
 
 
-def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
+def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngram):
     """
     Extract context words and target words from the given parsed xml data
 
@@ -134,8 +142,9 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
                 doc_idxs = []
                 position = 0
             elif element.tag == "sentence" and turnon:
-                doc_idxs.append(word2idx[bos])
-                position += 1
+                for _ in xrange(ngram - 1):
+                    doc_idxs.append(word2idx[bos])
+                    position += 1
             elif element.tag == "wf" and turnon:
                 word_idx = word2idx.get(element.text, w_unknown_idx)
                 doc_idxs.append(word_idx)
@@ -163,8 +172,9 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
                 continue
         elif action == "end":
             if element.tag == "sentence" and turnon:
-                doc_idxs.append(word2idx[eos])
-                position += 1
+                for _ in xrange(ngram - 1):
+                    doc_idxs.append(word2idx[eos])
+                    position += 1
             elif element.tag == "text" and turnon:
                 doc_idxs = np.concatenate(
                     [padding,
@@ -179,11 +189,11 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
     return doc_indexed, data_group_by_word
 
 
-def extract_words_noad(dataset_path, word2idx, context_size):
+def extract_words_noad(dataset_path, word2idx, target_words, context_size, ngram):
     raise NotImplementedError
 
 
-def process_data(dataset_path, data_type, word2idx, target_words, context_size, augment=False):
+def process_data(dataset_path, data_type, word2idx, target_words, context_size, ngram, augment=False):
     if data_type == "masc":
         extractor = extract_words_masc
     elif data_type == "omsti":
@@ -193,7 +203,7 @@ def process_data(dataset_path, data_type, word2idx, target_words, context_size, 
     else:
         raise "Unknown data type"
 
-    doc_indexed, data_group_by_word = extractor(dataset_path, word2idx, target_words, context_size)
+    doc_indexed, data_group_by_word = extractor(dataset_path, word2idx, target_words, context_size, ngram)
 
     datasets = {}
     for key, target_word_dataset in data_group_by_word.items():
