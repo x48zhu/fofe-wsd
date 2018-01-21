@@ -144,7 +144,7 @@ class BatchConstructor(object):
 
             yield left_buff[:n_next_batch], right_buff[:n_next_batch], batch_target_words, batch_targets
 
-    def next_by_target(self, batch_size, target_word, target, shuffle=False):
+    def next_by_target(self, batch_size, target_word, target, ngram=2, shuffle=False):
         """
         Return batch of data by word and its sense
         :param batch_size:
@@ -171,10 +171,13 @@ class BatchConstructor(object):
         while cur < len(data_of_target):
             next_batch_data = data_of_target[order[cur: cur + batch_size]]
             n_next_batch = len(next_batch_data)
+            pos_buff = []
             for i, data in enumerate(next_batch_data):
                 doc = self.docList_indexed[data.n_doc]
                 position = data.position
+                pos_buff.append(data.pos)
                 left_buff[i] = doc[position: position + self.context_size]
                 right_buff[i] = doc[position + self.context_size + 1: position + 2 * self.context_size + 1]
-            yield left_buff[:n_next_batch], right_buff[:n_next_batch]
+            yield left_buff[:n_next_batch], right_buff[:n_next_batch], pos_buff
             cur += batch_size
+

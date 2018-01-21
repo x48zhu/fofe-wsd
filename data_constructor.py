@@ -61,7 +61,8 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size):
             position = 0
             for child in parsed_xml:
                 position += 1 # add one first since bos append above
-                text = normalize(child['text'])
+                # text = normalize(child['text'])
+                text = child['text']
                 word_idx = word2idx.get(text, w_unknown_idx)
                 doc_idxs.append(word_idx)
 
@@ -115,6 +116,7 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
     w_unknown_idx = word2idx[w_unknown]
 
     label2sense = {}
+    turnon = False
     with open(dataset_path + '.gold.key.txt', 'r') as label_file:
         for line in label_file.readlines():
             tokens = line.rstrip().split(' ')
@@ -124,22 +126,23 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
     for action, element in xml_tree:
         if action == "start":
             if element.tag == "corpus":
-                logger.info("Process corpus %s..." % element.get('source'))
-            elif element.tag == "text":
+                if element.get('source') == 'mun':
+                    turnon = True
+                    logger.info("Process corpus %s..." % element.get('source'))
+            elif element.tag == "text" and turnon:
                 n_doc = len(doc_indexed)
                 doc_idxs = []
                 position = 0
-            elif element.tag == "sentence":
+            elif element.tag == "sentence" and turnon:
                 doc_idxs.append(word2idx[bos])
                 position += 1
-            elif element.tag == "wf":
+            elif element.tag == "wf" and turnon:
                 word_idx = word2idx.get(element.text, w_unknown_idx)
                 doc_idxs.append(word_idx)
                 position += 1
-            elif element.tag == "instance":
+            elif element.tag == "instance" and turnon:
                 word_idx = word2idx.get(element.text, w_unknown_idx)
                 doc_idxs.append(word_idx)
-                position += 1
                 instance_id = element.get('id')
                 lemma = element.get('lemma')
                 pos = element.get('pos')
@@ -155,13 +158,14 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size):
                 target = target_word.label2target[sense]
                 data = Data(target_word, n_doc, position, pos, target)
                 data_group_by_word[lemma].append(data)
+                position += 1
             else:
                 continue
         elif action == "end":
-            if element.tag == "sentence":
+            if element.tag == "sentence" and turnon:
                 doc_idxs.append(word2idx[eos])
                 position += 1
-            elif element.tag == "text":
+            elif element.tag == "text" and turnon:
                 doc_idxs = np.concatenate(
                     [padding,
                      np.asarray(doc_idxs, dtype=np.int32),

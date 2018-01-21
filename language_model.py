@@ -33,7 +33,9 @@ class LanguageModel(object):
             self.word2vec = tf.constant(word2vec, name="Embedding")
 
             batch_size, context_size = tf.unstack(tf.shape(self.left_context))
+
             right_alpha = tf.reshape(self.alpha[:batch_size, :context_size], [batch_size, 1, -1])
+            
             left_alpha = tf.reshape(right_alpha[:, :, ::-1], [batch_size, 1, -1])
             left_context = tf.squeeze(
                 tf.matmul(left_alpha, tf.gather(self.word2vec, self.left_context)),

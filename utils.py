@@ -4,6 +4,28 @@ from os.path import join
 import sys
 import tensorflow as tf
 
+
+def map_pos(pos):
+    the_map = {
+        'noun':'n',
+        'adjective':'a',
+        'adj':'a',
+        'verb':'v',
+        'adv':'r',
+        'adverb':'r',
+        'pron':'pron',
+        'adp':'adp',
+        'conj':'conj',
+        'det':'det',
+        'num':'num',
+        'prt':'prt',
+        'x':'x',
+        'other':'x',
+        'preposition':'apd',
+        'abbreviation':'x',
+    }
+    return the_map[pos.lower()]
+
 def get_data_type(data_path):
 	"""
 	Get data type from the data path.
