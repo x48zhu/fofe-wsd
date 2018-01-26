@@ -119,13 +119,12 @@ def load_embedding(path):
 
 def load_params(path):
     params = []
-    hardcode = [2, 4, 6, 8, 10]
     i = 0
     while True:
         i += 1
         try:
             weight = np.transpose(np.loadtxt(join(path, 'weight_%d.txt' % (i * 2)), delimiter=' ').astype(np.float32))
-            bias = np.loadtxt(join(path, 'bias_%d.txt' % (i * 2)).astype(np.float32))
+            bias = np.loadtxt(join(path, 'bias_%d.txt' % (i * 2))).astype(np.float32)
         except:
             break
         params.append((weight, bias))

@@ -33,7 +33,7 @@ source ${THIS_DIR}/path.sh
 
 model_path=${MODEL}/${model_name}
 data_path=${DATA}/${data_type}/${data_name}
-wordlist_path=${THIS_DIR}/torch-fofe/numeric-data/google-100000.vocab
+wordlist_path=${THIS_DIR}/torch-fofe/numeric-data/high-order-100k.vocab
 output_dir=${ABSTRACTED}/
 
 ${THIS_DIR}/context_abstract.py ${model_path} ${wordlist_path} ${data_type} ${data_path} ${output_dir} ${description} ${alpha} ${processed} ${ngram}

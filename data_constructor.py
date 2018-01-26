@@ -140,7 +140,7 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngra
     for action, element in xml_tree:
         if action == "start":
             if element.tag == "corpus":
-                # if element.get('source') == 'mun':
+                #if element.get('source') == 'mun':
                 if True:
                     turnon = True
                     logger.info("Process corpus %s..." % element.get('source'))
