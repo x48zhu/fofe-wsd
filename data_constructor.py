@@ -95,8 +95,9 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size, ngram
                     data_group_by_word[lemma].append(data)
 
                 position += 1
-
-            doc_idxs.append(word2idx[eos])
+            
+            for _ in xrange(ngram - 1):
+                doc_idxs.append(word2idx[eos])
             doc_idxs = np.concatenate([padding, np.asarray(doc_idxs, dtype=np.int32), padding], 0)
             indexed_docs.append(doc_idxs)
     return indexed_docs, data_group_by_word

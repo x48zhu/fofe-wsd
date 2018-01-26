@@ -178,10 +178,10 @@ class BatchConstructor(object):
                 pos_buff.append(data.pos)
 
                 for j in xrange(ngram - 1):
-                    left_buff[i,:,j] = doc[position + j: position + self.context_size + j]
+                    left_buff[i,:,j] = doc[position - ngram + j + 2: position + self.context_size - ngram + j + 2]
 
                 for j in xrange(ngram - 1):
-                    right_buff[i,:,j] = doc[position + self.context_size + j + ngram - 1: position + 2 * self.context_size + j + ngram - 1]
+                    right_buff[i,:,j] = doc[position + self.context_size + j + 1: position + 2 * self.context_size + j + 1]
 
                 # left_buff[i,:,0] = doc[position - 1: position + self.context_size - 1]
                 # left_buff[i,:,1] = doc[position: position + self.context_size]
