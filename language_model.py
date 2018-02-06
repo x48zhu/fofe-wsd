@@ -66,7 +66,13 @@ class LanguageModel(object):
             for i, param in enumerate(params):
                 W = tf.constant(param[0])
                 b = tf.constant(param[1])
-                current_out = tf.nn.relu(
+                # if i == len(params) - 1:
+                if False:
+                    func = tf.nn.sigmoid
+                else:
+                    func = tf.nn.relu
+
+                current_out = func(
                     tf.add(tf.matmul(current_out, W), b, name="Linear_%d" % i),
                     name="Relu_%d" % i
                 )
@@ -113,10 +119,15 @@ def load_embedding(path):
 
 def load_params(path):
     params = []
-    hardcode = [2, 4, 6, 8]
-    for i in hardcode:
-        weight = np.transpose(np.loadtxt(join(path, 'weight_%d.txt' % i), delimiter=' ').astype(np.float32))
-        bias = np.loadtxt(join(path, 'bias_%d.txt' % i)).astype(np.float32)
+    hardcode = [2, 4, 6, 8, 10]
+    i = 0
+    while True:
+        i += 1
+        try:
+            weight = np.transpose(np.loadtxt(join(path, 'weight_%d.txt' % (i * 2)), delimiter=' ').astype(np.float32))
+            bias = np.loadtxt(join(path, 'bias_%d.txt' % (i * 2)).astype(np.float32))
+        except:
+            break
         params.append((weight, bias))
         logger.info("Layer dim: %d" % bias.shape[0])
     return params

@@ -73,6 +73,11 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size, ngram
                     for _ in xrange(ngram - 1):
                         doc_idxs.append(word2idx[eos])
                         position += 1
+                    doc_idxs = np.concatenate([padding, np.asarray(doc_idxs, dtype=np.int32), padding], 0)
+                    indexed_docs.append(doc_idxs)
+                    n_doc = len(indexed_docs)
+                    doc_idxs = []
+                    position = 0
                     for _ in xrange(ngram - 1):
                         doc_idxs.append(word2idx[bos])
                         position += 1
@@ -135,7 +140,8 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngra
     for action, element in xml_tree:
         if action == "start":
             if element.tag == "corpus":
-                if element.get('source') == 'mun':
+                # if element.get('source') == 'mun':
+                if True:
                     turnon = True
                     logger.info("Process corpus %s..." % element.get('source'))
             elif element.tag == "text" and turnon:
