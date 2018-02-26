@@ -24,6 +24,14 @@ def main(args):
 		data_constructor = process_data(args.data_path, args.data_type, word2idx, target_words, args.context_size, args.ngram)
 		logger.debug("Number of target words: %d" % len(target_words))
 
+	#for target_word in target_words.values():
+	#	for target, label in target_word.target2label.items():
+	#		for left_context, right_context, pos, data in data_constructor.next_by_target(args.batch_size, target_word.word, target, ngram=args.ngram):
+	#			print np.array(left_context).squeeze()
+	#			print np.array(right_context).squeeze()
+	#			print [d.position for d in data]
+	#return
+
 	logger.info("Load language model...")
 	language_model = load_language_model(args.model_path, args.alpha)
 	
@@ -34,7 +42,7 @@ def main(args):
 		labels = []
 		poss = []
 		for target, label in target_word.target2label.items():
-			for left_context, right_context, pos in data_constructor.next_by_target(args.batch_size, target_word.word, target, ngram=args.ngram):
+			for left_context, right_context, pos, _ in data_constructor.next_by_target(args.batch_size, target_word.word, target, ngram=args.ngram):
 				features.extend(language_model.infer(left_context, right_context))
 				labels.extend([label] * left_context.shape[0])
 				poss.extend(pos)

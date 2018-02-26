@@ -66,6 +66,9 @@ class LanguageModel(object):
             for i, param in enumerate(params):
                 W = tf.constant(param[0])
                 b = tf.constant(param[1])
+                # The following line is intended to experiment change the 
+                # last activation from Relu to Sigmoid, by hoping that will
+                # retain more info.
                 # if i == len(params) - 1:
                 if False:
                     func = tf.nn.sigmoid

@@ -1,6 +1,8 @@
 #!/eecs/research/asr/mingbin/python-workspace/hopeless/bin/python
 import argparse
+import json
 from nltk.corpus import wordnet as wn
+import requests
 from sklearn import preprocessing
 from sklearn.metrics import f1_score
 
@@ -9,6 +11,11 @@ from classifier import *
 from utils import *
 
 
+sense_map_new2old, _ = load_sense_map()
+wn2noad = load_wn_noad_map()
+noad_dict = PickleFileHandler().read('/eecs/research/asr/xzhu/work/fofe-wsd/data/noad/mfs.pkl')
+					
+	
 class ClassifierGenerator(object):
 	def __init__(self, method, options):
 		self.method = method
@@ -16,7 +23,7 @@ class ClassifierGenerator(object):
 
 	def new_classifier(self, local_options):
 		if self.method == "knn":
-			k = min(float(self.options), local_options['k'])
+			k = float(self.options)
 			classifier = KNNClassifier(k, local_options['cos'])
 		elif self.method == "avg":
 			classifier = AverageClassifier(local_options['cos'])
@@ -24,6 +31,9 @@ class ClassifierGenerator(object):
 			classifier = MostFreqClassifier()
 		elif self.method == "nn":
 			classifier = NNClassifier()
+		elif self.method == "dynamic_knn":
+			k, threshold = self.options.split(',')
+			classifier = DynamicKNNClassifier(float(k), float(threshold))
 		else:
 			raise "Unknown classification method"
 		return classifier
@@ -38,16 +48,24 @@ class LabelEncoder(object):
 			self.label2target[label] = i + 1
 			self.target2label[i + 1] = label
 
-	def transform(self, labels):
-		return map(lambda l: self.label2target.get(l, 0), labels)
+	def add(self, label):
+		if label not in (self.label2target):
+			idx = len(self.label2target) + 1
+			self.label2target[label] = idx
+			self.target2label[idx] = label
+		return self.label2target[label]
+
+	def transform(self, labels, special_label=None):
+		return map(lambda l: -1 if l==special_label else self.label2target.get(l,0), labels)
 
 	def inverse_transform(self, targets):
 		return map(lambda t: self.target2label[t], targets)
 
 
-def most_freq_sense_masc(target_word, pos=None):
+def most_freq_sense_omsti(target_word, pos=None):
+	pos = map_pos(pos)
 	if pos is not None:
-		synsets = wn.synsets(target_word, map_pos(pos))
+		synsets = wn.synsets(target_word, pos)
 	else:
 		synsets = wn.synsets(target_word)
 	for synset in synsets:
@@ -56,6 +74,14 @@ def most_freq_sense_masc(target_word, pos=None):
 			if key.startswith("%s" % target_word):
 				return key
 	return None
+
+
+def most_freq_sense_masc(target_word, pos=None):
+	sense_key = noad_dict[target_word][pos] or most_freq_sense_omsti(target_word, pos)
+	if sense_key is None:
+		print "[%s, %s] has no sense key" % (target_word, pos)
+	# 	return None
+	# return sense_key
 
 
 def main(args):
@@ -79,7 +105,7 @@ def main(args):
 		le = LabelEncoder()
 		le.fit(labels)
 		label_encoders[target_word] = le
-		classifier = classifier_generator.new_classifier({'k':len(features), 'cos':args.cos})
+		classifier = classifier_generator.new_classifier({'cos':args.cos})
 		classifier.fit(np.array(features), np.array(le.transform(labels)))
 		classifiers[target_word] = classifier
 		label_offsets[target_word] = len(set(labels)) + 1
@@ -88,6 +114,7 @@ def main(args):
 	ok = 0
 	notok = 0
 	total = 0
+	n_use_mfs = 0
 	agg_targets = []
 	agg_predictions = []
 	logger.info("Evaluate...")
@@ -98,32 +125,52 @@ def main(args):
 		n = len(features)
 		if target_word in classifiers:
 			le = label_encoders[target_word]
-			targets = le.transform(labels)
 			predictions = classifiers[target_word].predict(np.array(features))
+			if args.method == "dynamic_knn":
+				for i, pred in enumerate(predictions):
+					if pred == -1: # Use most frequent sense
+						n_use_mfs += 1
+						if data_type == "omsti":
+							mfs_label = most_freq_sense_omsti(target_word, poss[i])
+						elif data_type == "masc":
+							mfs_label = most_freq_sense_masc(target_word, poss[i])
+						else:
+							raise "Invalid data type"
+						new_pred = le.add(mfs_label)
+						predictions[i] = new_pred
+			targets = le.transform(labels)
 		elif args.mfs:
 			le = LabelEncoder()
 			le.fit(labels)
 			targets = le.transform(labels)
-			predictions = []
-			for i, pos in enumerate(poss):
-				if data_type == "omsti":
-					predictions = le.transform(
-						[most_freq_sense_masc(target_word, pos) for pos in poss]
-					)
-				elif data_type == "masc":
-					predictions = le.transform(
-						[oxford_dict.get(target_word, {}).get(map_pos(pos), 0) for pos in poss]
-					)
-				else:
-					raise "Invalid data type"
+			if data_type == "omsti":
+				predictions = le.transform(
+					[most_freq_sense_omsti(target_word, pos) for pos in poss]
+				)
+			elif data_type == "masc":
+				# predictions = le.transform(
+				# 	[most_freq_sense_masc(target_word, pos) for pos in poss]
+				# )
+				predictions = le.transform(
+					[oxford_dict.get(target_word, {}).get(map_pos(pos), 0) for pos in poss]
+				)
+			else:
+				raise "Invalid data type"
 		else:
 			# No mfs backup, all predictions are false
-			agg_targets.extend([0] * n)
-			agg_predictions.extend([1] * n)
+			print "%s has no classifier, has %d instance" % (target_word, n)
+			le = LabelEncoder()
+			le.fit(labels)
+			targets = le.transform(labels)
+			predictions = [0] * n
 		n_correct = np.sum(np.equal(targets, predictions))
 		ok += n_correct
 		notok += np.size(targets) - n_correct
 		total += n
+		
+		agg_targets.extend(targets)
+		agg_predictions.extend(predictions)
+	logger.info("%d out of %d use most frequent sense" % (n_use_mfs, total))
 	logger.info("Sklearn micro F1 score: %f" % f1_score(agg_targets, agg_predictions, average='micro'))
 	precision = ok / float(ok + notok)
 	recall = ok / float(total)

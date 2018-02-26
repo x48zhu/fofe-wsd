@@ -6,6 +6,13 @@ from constants import *
 from utils import *
 from data import *
 
+
+def map_char(char):
+    char_map = {
+            '``':'""',
+    }
+    return char_map[char] if char in char_map else char
+
 def normalize(word):
     """
     Normalization that applies to every word in a document
@@ -97,6 +104,7 @@ def extract_words_masc(dataset_path, word2idx, target_words, context_size, ngram
                         target_word.target2label[sense_idx] = label
                     target = target_word.label2target[label]
                     data = Data(target_word, n_doc, position, pos, target)
+                    data.instance_id = None
                     data_group_by_word[lemma].append(data)
 
                 position += 1
@@ -140,7 +148,7 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngra
     for action, element in xml_tree:
         if action == "start":
             if element.tag == "corpus":
-                #if element.get('source') == 'mun':
+                # if element.get('source') == 'mun':
                 if True:
                     turnon = True
                     logger.info("Process corpus %s..." % element.get('source'))
@@ -157,11 +165,13 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngra
                 doc_idxs.append(word_idx)
                 position += 1
             elif element.tag == "instance" and turnon:
+                element.text = map_char(element.text)
                 word_idx = word2idx.get(element.text, w_unknown_idx)
                 doc_idxs.append(word_idx)
                 instance_id = element.get('id')
                 lemma = element.get('lemma')
                 pos = element.get('pos')
+                lemma = map_char(lemma)
                 if lemma not in target_words:
                     target_word = TargetWord(lemma)
                     target_words[lemma] = target_word
@@ -173,6 +183,7 @@ def extract_words_omsti(dataset_path, word2idx, target_words, context_size, ngra
                     target_word.target2label[sense_idx] = sense
                 target = target_word.label2target[sense]
                 data = Data(target_word, n_doc, position, pos, target)
+                data.instance_id = instance_id
                 data_group_by_word[lemma].append(data)
                 position += 1
             else:

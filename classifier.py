@@ -1,7 +1,9 @@
 import numpy as np
+import random
 
 from keras.models import Sequential
 from keras.layers import Dense
+from scipy.stats import mode
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import f1_score
 from sklearn.neighbors import KNeighborsClassifier
@@ -23,6 +25,42 @@ class Classifier(object):
         raise NotImplementedError
 
 
+class DynamicKNNClassifier(Classifier):
+    def __init__(self, k, threshold, cos_similarity=True):
+        super(DynamicKNNClassifier, self).__init__()
+        self.k = k
+        self.threshold = threshold
+        self.cos_similarity = cos_similarity
+
+    def fit(self, features, targets):
+        if self.cos_similarity:
+            # Features are normalized to unit 1, then cosine simliarity between unit feature
+            # is equivalent to their euclidean distance.
+            features = features / np.sqrt(np.sum(features*features, axis=1)).reshape(-1,1)
+        augment = True
+        if augment and len(targets) < self.k:
+            idx = np.random.choice(len(targets), self.k - len(targets))
+            features = np.append(features, features[idx], axis=0)
+            targets = np.append(targets, targets[idx], axis=0)
+            k = self.k
+        else:
+            k = min(self.k, len(targets))
+        self.targets = targets
+        self.model = KNeighborsClassifier(k, weights='distance')
+        self.model.fit(features, targets)
+
+    def predict(self, features):
+        if self.cos_similarity:
+            features = features / np.sqrt(np.sum(features*features, axis=1)).reshape(-1,1)
+        dist, idx = self.model.kneighbors(features)
+        result = self.targets.take(idx)
+        result[dist>self.threshold] = -1
+        if len(self.targets) < self.k:
+            padding = np.full((len(features), self.k - len(self.targets)), -1, dtype=int)
+            result = np.concatenate((result, padding), axis=1)
+        return np.squeeze(mode(result, axis=-1)[0], axis=1).tolist()
+
+
 class KNNClassifier(Classifier):
     def __init__(self, k, cos_similarity=True):
 	super(KNNClassifier, self).__init__()
@@ -34,8 +72,8 @@ class KNNClassifier(Classifier):
             # Features are normalized to unit 1, then cosine simliarity between unit feature
             # is equivalent to their euclidean distance.
             features = features / np.sqrt(np.sum(features*features, axis=1)).reshape(-1,1)
-        super(KNNClassifier, self).__init__()
-        self.model = KNeighborsClassifier(self.k)
+        k = min(self.k, len(targets))
+        self.model = KNeighborsClassifier(k, weights='distance')
         self.model.fit(features, targets)
 
     def predict(self, features):

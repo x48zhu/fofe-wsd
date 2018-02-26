@@ -16,7 +16,7 @@ def main(args):
 
 	logger.info("Process data...")
 	target_words = {}
-	data_constructor = process_data(args.data_path, args.data_type, word2idx, target_words, args.context_size)
+	data_constructor = process_data(args.data_path, args.data_type, word2idx, target_words, args.context_size, args.ngram)
 	logger.debug("Number of target words: %d" % len(target_words))
 	logger.info("Save process data...")
 	PickleFileHandler().write((target_words, data_constructor), args.output_dir, "%s_%s.data_constructor" % (args.data_type, basename(args.data_path)))
@@ -31,5 +31,6 @@ if __name__ == "__main__":
 	parser.add_argument('output_dir')
 
 	parser.add_argument('--context_size', type=int, default=16)
+        parser.add_argument('--ngram', type=int, default=4)
 	args, unparsed_args = parser.parse_known_args()
 	main(args)

@@ -5,6 +5,12 @@ import sys
 import tensorflow as tf
 
 
+app_id = 'ee13b24d'
+app_key = '12e64753882efec95ae02ffcbd4dc7a3'
+lexid_map_path = '/local/scratch/xzhu/work/lexid_map.csv'
+wn_noad_map_dir = '/eecs/research/asr/xzhu/work/fofe-wsd/data/masc'
+
+
 def map_pos(pos):
     the_map = {
         'noun':'n',
@@ -13,18 +19,19 @@ def map_pos(pos):
         'verb':'v',
         'adv':'r',
         'adverb':'r',
-        'pron':'pron',
-        'adp':'adp',
-        'conj':'conj',
-        'det':'det',
-        'num':'num',
-        'prt':'prt',
-        'x':'x',
-        'other':'x',
-        'preposition':'apd',
-        'abbreviation':'x',
+        # 'pron':'pron',
+        # 'adp':'adp',
+        # 'conj':'conj',
+        # 'det':'det',
+        # 'num':'num',
+        # 'prt':'prt',
+        # 'x':'x',
+        # 'other':'x',
+        # 'preposition':'apd',
+        # 'abbreviation':'x',
     }
-    return the_map[pos.lower()]
+    return the_map.get(pos.lower(), None)
+
 
 def get_data_type(data_path):
 	"""
@@ -33,6 +40,30 @@ def get_data_type(data_path):
 	e.g. masc/semcor, omsti/Semcor
 	"""
 	return data_path.split('/')[-2]
+
+
+def load_sense_map():
+    # line[0] = m_en_gb; line[1] = m_en_gbus
+    sense_map_old2new = {}
+    sense_map_new2old = {}
+    with open(lexid_map_path, 'r') as f:
+        for line in f.readlines():
+            temp = line.strip().split(',')
+            sense_map_new2old[temp[0]] = temp[1]
+            sense_map_old2new[temp[1]] = temp[0]
+    return sense_map_new2old, sense_map_old2new
+
+
+def load_wn_noad_map():
+    wn2noad = {}
+    with open(join(wn_noad_map_dir, 'manual_map.txt'), 'r') as f:
+        for line in f.readlines():
+            temp = line.strip().split('\t')
+            noad = temp[0].split('/')[-1]
+            wns = temp[1]
+            for wn in wns.split(','):
+                wn2noad[wn] = noad
+    return wn2noad
 
 
 def map_fn_wrapper(fn, arrays, name, dtype=tf.float32):

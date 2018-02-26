@@ -188,6 +188,6 @@ class BatchConstructor(object):
                 # right_buff[i,:,0] = doc[position + self.context_size + 1: position + 2 * self.context_size + 1]
                 # right_buff[i,:,1] = doc[position + self.context_size + 2: position + 2 * self.context_size + 2]
 
-            yield left_buff[:n_next_batch], right_buff[:n_next_batch], pos_buff
+            yield left_buff[:n_next_batch], right_buff[:n_next_batch], pos_buff, next_batch_data
             cur += batch_size
 
